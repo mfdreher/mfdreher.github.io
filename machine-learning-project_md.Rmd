@@ -1,0 +1,110 @@
+---
+title: "Practical Machine Learning Course Project"
+---
+
+**EXECUTIVE SUMMARY**
+
+This project analyzes the Weight Lifting Exercises dataset from Groupware@LES. The dataset measures how well a bicep curl is performed by test subjects. Each repetition is classified using labels A through E. Various Human Activity Recognition (HAR) measurements are taken for each repetition. The goal of the project is to execute a machine learning algorithm to correctly predict the class of bicep curl using the measurements. 
+
+The dataset includes 160 variables. Time stamp, ID, and other non-HAR measurements were excluded. A near zero variance analysis and correlation analysis was conducted on the HAR measurements to eliminate variables. The remaining variables had a random forest algorithm applied to the training set. The model was used the predict the outcome of the training test set. The accuracy of predicting the test set was 99.4%. No additional algorithms were executed. 
+
+**DATA EXTRACTION**
+
+The data was loaded into R and all empty cells (" "), NAs, and "DIV/0" values were converted to NAs and then coerced to zeros. 
+
+
+```{r}
+trainset <- read.csv("./data/pml-training.csv", na.strings=c("NA","", "#DIV/0!"))
+trainset[is.na(trainset)] <- 0
+```
+
+
+***CROSS VALIDATION***
+
+To cross validate the data the training set was separated into a training and testing set. 70% of the data was set aside for training with 30% held for testing.
+
+
+```{r, warning=FALSE, message=FALSE}
+library(caret)
+set.seed(924)
+inTrain <- createDataPartition(y=trainset$classe, p=0.7, list=FALSE)
+
+training <- trainset[inTrain, ]
+testing <- trainset[-inTrain, ]
+
+dim(training)
+dim(testing)
+```
+
+
+***VARIABLE SELECTION***
+
+Time stamp, ID, and other non-HAR measurements were excluded. 
+
+
+```{r, warning=FALSE, message=FALSE}
+kepcol <- names(training) %in% c("X","user_name", "raw_timestamp_part_1", 
+          "raw_timestamp_part_2", "cvtd_timestamp","new_window", "num_window", 
+          "kurtosis_yaw_belt","skewness_yaw_belt", "kurtosis_yaw_dumbbell",
+          "skewness_yaw_dumbbell")
+training <- training[!kepcol]
+```
+
+
+A near zero variance analysis was performed to eliminate variables with only  one value. 
+
+
+```{r}
+nzv <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[ , !nzv$nzv]
+```
+
+
+Variables that have high correlations with other variables were removed. The correlation threshold was set at 0.9.
+
+
+```{r, warning=FALSE, message=FALSE}
+highcor <- findCorrelation(cor(training[,-53]), cutoff = .90)
+training <- training[, -highcor]
+```
+
+
+***MODELING***
+
+A Random Forest algorithm was applied to the dataset with "classe" as the predictor and all remaining variables as the inputs. A Random Forest model was deployed as they tend to be the most accurate. 
+
+I used the "randomForest" function instead of running through the "train" function in the caret package. The train function takes several minutes longer to calculate than the randomForest function. 
+
+
+```{r, message=FALSE}
+library(randomForest)
+modelFit <- randomForest(classe ~. , data=training)
+```
+
+***VALIDATING THE MODEL USING TRAINING TEST DATA***
+
+Training test set was fed into the model to poredict "classe." A confusionMatrix is run to asses accuracy. 
+
+
+```{r}
+predictions <- predict(modelFit, testing)
+confusionMatrix(predictions, testing$classe)
+```
+
+***MODEL SELECTION***
+
+With 99.4% accuracy on the training test set I did not run other models. They are unlikely to produce more accurate predictions. 
+
+
+
+***TEST DATA SET PREDICTIONS***
+
+The model was applied to the test data set. The predictions are below. All 20 were judged correct when submitted for grading. 
+
+
+```{r}
+testset <- read.csv("./data/pml-testing.csv", na.strings=c("NA","", "#DIV/0!"))
+testset[is.na(testset)] <- 0
+predict(modelFit, testset, type = "class")
+```
+
